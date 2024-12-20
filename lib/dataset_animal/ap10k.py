@@ -391,7 +391,7 @@ class AnimalAP10KDataset(Kpt2dSviewRgbImgTopDownDataset):
             _key_points = np.array([img_kpts[k]['keypoints']
                                     for k in range(len(img_kpts))])
             key_points = np.zeros(
-                (_key_points.shape[0], self.num_joints * 3), dtype=np.float
+                (_key_points.shape[0], self.num_joints * 3), dtype=np.float32
             )
 
             for ipt in range(self.num_joints):
