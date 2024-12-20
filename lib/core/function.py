@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def train(config, train_loader, model, criterion, optimizer, epoch,
-          output_dir, tb_log_dir, writer_dict):
+          output_dir):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -70,15 +70,11 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
                       data_time=data_time, loss=losses, acc=acc)
             logger.info(msg)
 
-            writer = writer_dict['writer']
-            global_steps = writer_dict['train_global_steps']
-            writer.add_scalar('train_loss', losses.val, global_steps)
-            writer.add_scalar('train_acc', acc.val, global_steps)
-            writer_dict['train_global_steps'] = global_steps + 1
+        return loss.item()
 
 
 def validate(config, val_loader, val_dataset, model, criterion, output_dir,
-             tb_log_dir, writer_dict=None, animalpose=False, vis=False):
+             animalpose=False, vis=False):
     batch_time = AverageMeter()
     losses = AverageMeter()
     acc = AverageMeter()
@@ -187,39 +183,12 @@ def validate(config, val_loader, val_dataset, model, criterion, output_dir,
         else:
             _print_name_value(name_values, model_name)
 
-        if writer_dict:
-            writer = writer_dict['writer']
-            global_steps = writer_dict['valid_global_steps']
-            writer.add_scalar(
-                'valid_loss',
-                losses.avg,
-                global_steps
-            )
-            writer.add_scalar(
-                'valid_acc',
-                acc.avg,
-                global_steps
-            )
-            if isinstance(name_values, list):
-                for name_value in name_values:
-                    writer.add_scalars(
-                        'valid',
-                        dict(name_value),
-                        global_steps
-                    )
-            else:
-                writer.add_scalars(
-                    'valid',
-                    dict(name_values),
-                    global_steps
-                )
-            writer_dict['valid_global_steps'] = global_steps + 1
-    return perf_indicator
+    return perf_indicator, loss.item()
 
 
 # evaluate both student and teacher models
 def validate_mt(config, val_loader, val_dataset, model, model_ema, criterion, output_dir,
-             tb_log_dir, writer_dict=None, animalpose=False):
+                animalpose=False):
     batch_time = AverageMeter()
     losses_sup = AverageMeter()
     losses_const = AverageMeter()
@@ -364,35 +333,7 @@ def validate_mt(config, val_loader, val_dataset, model, model_ema, criterion, ou
         else:
             _print_name_value(name_values_ema, model_name)
 
-        if writer_dict:
-            writer = writer_dict['writer']
-            global_steps = writer_dict['valid_global_steps']
-            writer.add_scalar(
-                'valid_loss',
-                losses_sup.avg,
-                global_steps
-            )
-            writer.add_scalar(
-                'valid_acc',
-                acc.avg,
-                global_steps
-            )
-            if isinstance(name_values, list):
-                for name_value in name_values:
-                    writer.add_scalars(
-                        'valid',
-                        dict(name_value),
-                        global_steps
-                    )
-            else:
-                writer.add_scalars(
-                    'valid',
-                    dict(name_values),
-                    global_steps
-                )
-            writer_dict['valid_global_steps'] = global_steps + 1
-
-    return perf_indicator_ema
+    return perf_indicator_ema, losses_sup, losses_const, avg_acc, avg_acc_ema
 
 
 # markdown format output

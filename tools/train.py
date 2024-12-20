@@ -8,13 +8,13 @@ import os
 import pprint
 
 import torch
+import wandb
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
-from tensorboardX import SummaryWriter
 
 import _init_paths
 from config import cfg
@@ -28,6 +28,7 @@ from utils.utils import create_logger
 from utils.utils import get_model_summary
 import models
 import dataset_animal
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
@@ -75,6 +76,8 @@ def parse_args():
     parser.add_argument('--resume', help='path to resume', type=str, default='')
 
     parser.add_argument('--evaluate', action='store_true')
+    parser.add_argument('--wandb', default=True, type=bool)
+    parser.add_argument('--log_tag', default="base_training", type=str)
     args = parser.parse_args()
 
     return args
@@ -90,6 +93,13 @@ def main():
     logger.info(pprint.pformat(args))
     logger.info(cfg)
 
+    name_project = f'{args.log_tag}.txt'
+    wandb.init(project="noisyScarceNet",
+            name=name_project,
+            tags="t1",
+            config=args.__dict__,
+            mode=args.wandb)
+
     # cudnn related setting
     cudnn.benchmark = cfg.CUDNN.BENCHMARK
     torch.backends.cudnn.deterministic = cfg.CUDNN.DETERMINISTIC
@@ -98,12 +108,6 @@ def main():
     model = eval('models.'+cfg.MODEL.NAME+'.get_pose_net')(
         cfg, is_train=True
     )
-
-    writer_dict = {
-        'writer': SummaryWriter(log_dir=tb_log_dir),
-        'train_global_steps': 0,
-        'valid_global_steps': 0,
-    }
 
     dump_input = torch.rand(
         (1, 3, cfg.MODEL.IMAGE_SIZE[1], cfg.MODEL.IMAGE_SIZE[0])
@@ -206,7 +210,7 @@ def main():
     if args.evaluate:
 
         acc = validate(cfg, valid_loader, valid_dataset, model, criterion,
-                        final_output_dir, tb_log_dir, writer_dict, args.animalpose)
+                        final_output_dir, args.animalpose)
         return
 
     # train
@@ -214,14 +218,13 @@ def main():
         lr_scheduler.step()
 
         # train for one epoch
-        train(cfg, train_loader, model, criterion, optimizer, epoch,
-              final_output_dir, tb_log_dir, writer_dict)
+        loss = train(cfg, train_loader, model, criterion, optimizer, epoch,
+              final_output_dir)
 
         # evaluate on validation set
-        perf_indicator = validate(
+        perf_indicator, val_loss = validate(
             cfg, valid_loader, valid_dataset, model, criterion,
-            final_output_dir, tb_log_dir, writer_dict, args.animalpose
-        )
+            final_output_dir, args.animalpose)
 
         if perf_indicator >= best_perf:
             best_perf = perf_indicator
@@ -230,6 +233,8 @@ def main():
         else:
             best_model = False
 
+        wandb.log({"TrainLoss": loss, "ValidLoss": val_loss})
+                    
         logger.info('=> saving checkpoint to {}'.format(final_output_dir))
         save_checkpoint({
             'epoch': epoch + 1,
@@ -247,7 +252,6 @@ def main():
     )
     logger.info('Best accuracy {} at epoch {}'.format(best_perf, best_perf_epoch))
     torch.save(model.module.state_dict(), final_model_state_file)
-    writer_dict['writer'].close()
 
 
 if __name__ == '__main__':

@@ -16,8 +16,7 @@ from core.loss import select_small_loss_samples_v2
 logger = logging.getLogger(__name__)
 
 
-def train_mt_update(config, args, train_loader, dataset, model, model_ema, criterion, optimizer, epoch,
-          output_dir, tb_log_dir, writer_dict):
+def train_mt_update(config, args, train_loader, dataset, model, model_ema, criterion, optimizer, epoch, writer_dict):
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -159,12 +158,11 @@ def train_mt_update(config, args, train_loader, dataset, model, model_ema, crite
         loss = const_loss_weight * loss_consistency + loss_sup
         # compute gradient and do update step
 
-        writer = writer_dict['writer']
-        global_steps = writer_dict['train_global_steps']
-
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        global_steps = writer_dict['train_global_steps']
         update_ema_variables(model, model_ema, 0.999, global_steps)
         # measure accuracy and record loss
         losses.update(loss.item(), input.size(0))
@@ -194,8 +192,13 @@ def train_mt_update(config, args, train_loader, dataset, model, model_ema, crite
                       data_time=data_time, loss_sup=losses_sup, loss_const=losses_consistency, acc=acc, acc_ema=acc_ema)
             logger.info(msg)
 
-            writer.add_scalar('train_loss', losses.val, global_steps)
-            writer.add_scalar('loss_sup', losses_sup.val, global_steps)
-            writer.add_scalar('loss_const', losses_consistency.val, global_steps)
-            writer.add_scalar('train_acc', acc.val, global_steps)
         writer_dict['train_global_steps'] = global_steps + 1
+        wandb_dict = {
+            'TrainLoss': losses.val,
+            'TSupervLoss': losses_sup.val,
+            'TConstLoss': losses_consistency.val,
+            'TAccuracy': avg_acc.val,
+            'TAccuracyEma': avg_acc_ema.val,
+            }
+
+    return wandb_dict, 

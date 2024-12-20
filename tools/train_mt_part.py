@@ -10,12 +10,12 @@ import shutil
 import numpy as np
 
 import torch
+import wandb
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
-from tensorboardX import SummaryWriter
 
 import _init_paths
 from config import cfg
@@ -119,6 +119,8 @@ def parse_args():
 
     parser.add_argument('--evaluate', action='store_true')
     parser.add_argument('--few_shot_setting', action='store_false')
+    parser.add_argument('--wandb', default=True, type=bool)
+    parser.add_argument('--log_tag', default="base_noisy_training", type=str)
     args = parser.parse_args()
 
     return args
@@ -134,6 +136,18 @@ def main():
 
     logger.info(pprint.pformat(args))
     logger.info(cfg)
+
+    name_project = f'{args.log_tag}.txt'
+    wandb.init(project="noisyScarceNet",
+            name=name_project,
+            tags="t1",
+            config=args.__dict__,
+            mode=args.wandb)
+    
+    writer_dict = {
+        'train_global_steps': 0,
+        'valid_global_steps': 0,
+    } 
 
     # cudnn related setting
     cudnn.benchmark = cfg.CUDNN.BENCHMARK
@@ -154,12 +168,6 @@ def main():
     shutil.copy2(
         os.path.join(this_dir, '../lib/core/function1.py'),
         final_output_dir)
-
-    writer_dict = {
-        'writer': SummaryWriter(log_dir=tb_log_dir),
-        'train_global_steps': 0,
-        'valid_global_steps': 0,
-    }
 
     dump_input = torch.rand(
         (1, 3, cfg.MODEL.IMAGE_SIZE[1], cfg.MODEL.IMAGE_SIZE[0])
@@ -284,7 +292,7 @@ def main():
 
     if args.evaluate:
         acc = validate(cfg, valid_loader, valid_dataset, model, criterion,
-                        final_output_dir, tb_log_dir, writer_dict, args.animalpose)
+                        final_output_dir, args.animalpose)
         return
 
     for epoch in range(begin_epoch, args.epochs):
@@ -337,13 +345,13 @@ def main():
             )
 
         lr_scheduler.step()
-        train_mt_update(cfg, args, train_loader, train_dataset, model, model_ema, criterion, optimizer, epoch,
-              final_output_dir, tb_log_dir, writer_dict)
+        wandb_logs = train_mt_update(cfg, args, train_loader, train_dataset, model, model_ema, criterion, 
+                                     optimizer, epoch, final_output_dir, writer_dict)
 
         # evaluate on validation set
-        perf_indicator = validate_mt(
+        perf_indicator, val_losses_sup, val_losses_const, val_acc, val_acc_ema = validate_mt(
             cfg, valid_loader, valid_dataset, model, model_ema, criterion,
-            final_output_dir, tb_log_dir, writer_dict, args.animalpose)
+            final_output_dir, writer_dict, args.animalpose)
 
         if perf_indicator >= best_perf:
             best_perf = perf_indicator
@@ -361,6 +369,12 @@ def main():
             'optimizer': optimizer.state_dict(),
         }, best_model, final_output_dir)
 
+        wandb_logs['ValSupervLoss'] = val_losses_sup
+        wandb_logs['ValConstLoss'] = val_losses_const
+        wandb_logs['ValAccuracy'] = val_acc
+        wandb_logs['ValAccuracyEma'] = val_acc_ema
+        wandb.log(wandb_logs)
+
     final_model_state_file = os.path.join(
         final_output_dir, 'final_state.pth'
     )
@@ -369,7 +383,6 @@ def main():
     )
     logger.info('Best accuracy {} at epoch {}'.format(best_perf, best_perf_epoch))
     torch.save(model.module.state_dict(), final_model_state_file)
-    writer_dict['writer'].close()
 
 
 if __name__ == '__main__':
