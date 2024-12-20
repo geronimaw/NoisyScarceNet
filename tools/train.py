@@ -76,7 +76,7 @@ def parse_args():
     parser.add_argument('--resume', help='path to resume', type=str, default='')
 
     parser.add_argument('--evaluate', action='store_true')
-    parser.add_argument('--wandb', default=True, type=bool)
+    parser.add_argument('--wandb', default='online', type=str)
     parser.add_argument('--log_tag', default="base_training", type=str)
     args = parser.parse_args()
 
