@@ -70,7 +70,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
                       data_time=data_time, loss=losses, acc=acc)
             logger.info(msg)
 
-        return loss.item()
+        return loss.item(), avg_acc
 
 
 def validate(config, val_loader, val_dataset, model, criterion, output_dir,
@@ -183,7 +183,7 @@ def validate(config, val_loader, val_dataset, model, criterion, output_dir,
         else:
             _print_name_value(name_values, model_name)
 
-    return perf_indicator, loss.item()
+    return perf_indicator, loss.item(), avg_acc
 
 
 # evaluate both student and teacher models

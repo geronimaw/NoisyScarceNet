@@ -218,11 +218,11 @@ def main():
         lr_scheduler.step()
 
         # train for one epoch
-        loss = train(cfg, train_loader, model, criterion, optimizer, epoch,
+        loss, acc = train(cfg, train_loader, model, criterion, optimizer, epoch,
               final_output_dir)
 
         # evaluate on validation set
-        perf_indicator, val_loss = validate(
+        perf_indicator, val_loss, val_acc = validate(
             cfg, valid_loader, valid_dataset, model, criterion,
             final_output_dir, args.animalpose)
 
@@ -233,7 +233,7 @@ def main():
         else:
             best_model = False
 
-        wandb.log({"TrainLoss": loss, "ValidLoss": val_loss})
+        wandb.log({"TrainLoss": loss, "TrainAcc": acc, "ValidLoss": val_loss, "ValidAcc": val_acc})
                     
         logger.info('=> saving checkpoint to {}'.format(final_output_dir))
         save_checkpoint({
