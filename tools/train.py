@@ -89,10 +89,11 @@ def main():
 
     logger, final_output_dir, tb_log_dir = create_logger(
         cfg, args.cfg, 'train')
-
     logger.info(pprint.pformat(args))
     logger.info(cfg)
 
+    # TODO: customize log_tag according to the training
+    
     name_project = f'{args.log_tag}.txt'
     wandb.init(project="noisyScarceNet",
             name=name_project,
